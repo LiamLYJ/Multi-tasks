@@ -52,12 +52,16 @@ def solve(global_step):
     refined_cls_losses = tf.get_collection("refined_cls_losses")
     mask_losses = tf.get_collection("mask_losses")
     body_mask_losses = tf.get_collection("body_mask_losses")
+    if FLAGS.use_refine:
+        locref_map_losses = tf.get_collection("locref_map_losses")
 
     tf.summary.scalar('rpn_box_losses',tf.add_n(rpn_box_losses))
     tf.summary.scalar('rpn_cls_losses',tf.add_n(rpn_cls_losses))
     tf.summary.scalar('refined_box_losses',tf.add_n(refined_box_losses))
     tf.summary.scalar('refined_cls_losses',tf.add_n(refined_cls_losses))
     tf.summary.scalar('mask_losses',tf.add_n(mask_losses))
+    if FLAGS.use_refine:
+        tf.summary.scalar('locref_map_losses',tf.add_n(locref_map_losses))
     tf.summary.scalar('body_mask_losses',tf.add_n(body_mask_losses))
 
 
@@ -102,7 +106,7 @@ def restore(sess):
         if FLAGS.checkpoint_exclude_scopes is None:
             FLAGS.checkpoint_exclude_scopes='pyramid'
         if FLAGS.checkpoint_include_scopes is None:
-            FLAGS.checkpoint_include_scopes='resnet_v1_50'
+            FLAGS.checkpoint_include_scopes='resnet_v1_101'
 
         vars_to_restore = get_var_list_to_restore()
         for var in vars_to_restore:
@@ -128,7 +132,7 @@ def train():
                              FLAGS.dataset_dir,
                              FLAGS.im_batch,
                              is_training=True)
-                      
+
     data_queue = tf.RandomShuffleQueue(capacity=32, min_after_dequeue=16,
             dtypes=(
                 image.dtype, ih.dtype, iw.dtype,
@@ -226,7 +230,7 @@ def train():
             summary_str = sess.run(summary_op)
             summary_writer.add_summary(summary_str, step)
 
-        if (step % 500 == 0 or step + 1 == FLAGS.max_iters) and step != 0:
+        if (step % 1000 == 0 or step + 1 == FLAGS.max_iters) and step != 0:
             checkpoint_path = os.path.join(FLAGS.train_dir,
                                            FLAGS.dataset_name + '_' + FLAGS.network + '_model.ckpt')
             saver.save(sess, checkpoint_path, global_step=step)
@@ -236,5 +240,133 @@ def train():
             coord.join(threads)
 
 
+
+
+def train_refine():
+    """The main function that runs training for FLAGS refine """
+
+    ## data
+    image,ih,iw,gt_boxes,gt_masks,gt_locref_map,gt_locref_mask,gt_body_masks,num_masks,image_id = \
+        datasets.get_dataset(FLAGS.dataset_name,
+                             FLAGS.dataset_split_name,
+                             FLAGS.dataset_dir,
+                             FLAGS.im_batch,
+                             is_training=True)
+
+    data_queue = tf.RandomShuffleQueue(capacity=32, min_after_dequeue=16,
+            dtypes=(
+                image.dtype, ih.dtype, iw.dtype,
+                gt_boxes.dtype, gt_masks.dtype,gt_locref_map.dtype,gt_locref_mask.dtype,
+                gt_body_masks.dtype, num_masks.dtype,image_id.dtype))
+    enqueue_op = data_queue.enqueue((image,ih,iw,gt_boxes,gt_masks,gt_locref_map,gt_locref_mask,gt_body_masks,num_masks,image_id))
+    data_queue_runner = tf.train.QueueRunner(data_queue, [enqueue_op] * 4)
+    tf.add_to_collection(tf.GraphKeys.QUEUE_RUNNERS, data_queue_runner)
+    (image,ih,iw,gt_boxes,gt_masks,gt_locref_map,gt_locref_mask,gt_body_masks,num_masks,image_id) =  data_queue.dequeue()
+    im_shape = tf.shape(image)
+    image = tf.reshape(image, (im_shape[0], im_shape[1], im_shape[2], 3))
+
+    ## network
+    logits, end_points, pyramid_map = network.get_network(FLAGS.network, image,
+            weight_decay=FLAGS.weight_decay)
+    outputs = pyramid_network.build(end_points, ih, iw, pyramid_map,
+            num_classes=2,
+            base_anchors=9,
+            is_training=True,
+            gt_boxes=gt_boxes, gt_masks=gt_masks,
+            gt_locref_map = gt_locref_map,
+            gt_locref_mask = gt_locref_mask,
+            gt_body_masks = gt_body_masks,
+            loss_weights=[0.2, 0.2, 0.2, 0.2, 1.0, 1.0])
+
+
+    total_loss = outputs['total_loss']
+    losses  = outputs['losses']
+    batch_info = outputs['batch_info']
+    regular_loss = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+
+    ## solvers
+    global_step = slim.create_global_step()
+    update_op = solve(global_step)
+
+    cropped_rois = tf.get_collection('__CROPPED__')[0]
+    transposed = tf.get_collection('__TRANSPOSED__')[0]
+
+    gpu_options = tf.GPUOptions(allocator_type = 'BFC',allow_growth = True)
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
+    init_op = tf.group(
+            tf.global_variables_initializer(),
+            tf.local_variables_initializer()
+            )
+    sess.run(init_op)
+
+    summary_op = tf.summary.merge_all()
+    logdir = os.path.join(FLAGS.train_dir, strftime('%Y%m%d%H%M%S', gmtime()))
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+    summary_writer = tf.summary.FileWriter(logdir, graph=sess.graph)
+
+    ## restore
+    restore(sess)
+
+    ## main loop
+    coord = tf.train.Coordinator()
+    threads = []
+    # print (tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS))
+    for qr in tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS):
+        threads.extend(qr.create_threads(sess, coord=coord, daemon=True,
+                                         start=True))
+
+    tf.train.start_queue_runners(sess=sess, coord=coord)
+    saver = tf.train.Saver(max_to_keep=20)
+
+    for step in range(sess.run(global_step),FLAGS.max_iters):
+
+        start_time = time.time()
+
+        s_, tot_loss, reg_lossnp, img_id_str, \
+        rpn_box_loss, rpn_cls_loss, refined_box_loss, refined_cls_loss, mask_loss,mask1,locref_loss,locref1,body_masks_loss, \
+        gt_boxesnp, \
+        rpn_batch_pos, rpn_batch, refine_batch_pos, refine_batch, body_mask_batch_pos, body_mask_batch = \
+                     sess.run([update_op, total_loss, regular_loss, image_id] +
+                              losses +
+                              [gt_boxes] +
+                              batch_info )
+
+        duration_time = time.time() - start_time
+        if step % 1 == 0:
+            print ( """iter %d: image-id:%07d, time:%.3f(sec), regular_loss: %.6f, """
+                    """total-loss %.4f(%.4f, %.4f, %.6f, %.4f, %.8f, %.8f,%.8f,%.8f,%.4f), """
+                    """instances: %d, """
+                    """batch:(%d|%d, %d|%d, %d|%d)"""
+                   % (step, img_id_str, duration_time, reg_lossnp,
+                      tot_loss, rpn_box_loss, rpn_cls_loss, refined_box_loss, refined_cls_loss, mask_loss,mask1, \
+                      locref_loss, locref1, body_masks_loss,
+                      gt_boxesnp.shape[0],
+                      rpn_batch_pos, rpn_batch, refine_batch_pos, refine_batch, body_mask_batch_pos, body_mask_batch))
+
+            if np.isnan(tot_loss) or np.isinf(tot_loss):
+                print (gt_boxesnp)
+                raise
+
+        if step % 40 == 0:
+            summary_str = sess.run(summary_op)
+            summary_writer.add_summary(summary_str, step)
+
+        if (step % 1000 == 0 or step + 1 == FLAGS.max_iters) and step != 0:
+            checkpoint_path = os.path.join(FLAGS.train_dir,
+                                           FLAGS.dataset_name + '_' + FLAGS.network + '_model.ckpt')
+            saver.save(sess, checkpoint_path, global_step=step)
+
+        if coord.should_stop():
+            coord.request_stop()
+            coord.join(threads)
+
+
+
+
 if __name__ == '__main__':
-    train()
+    if not FLAGS.use_refine:
+        train()
+    else:
+        train_refine()
