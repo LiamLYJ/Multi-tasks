@@ -26,8 +26,7 @@ def _mask_encode(masks,viss,ih,iw,stride = None,pose_dist_stride = None,num_join
 
 
 # for heatmap generation
-#    if hp :
-        if hp is ture
+    if hp :
         if pose_dist_stride is None:
             dist_thresh = FLAGS.pos_dist_stride
         else :
