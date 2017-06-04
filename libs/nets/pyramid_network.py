@@ -195,7 +195,7 @@ def build_pyramid(net_name, end_points, bilinear=True):
     # apply the concatenate and deconv ways
     #   for c in range(4,1,-1):
     #       s, s_ = pyramid['P%d'%(c+1)],end_points[pyramid_map['C%d'%(c)]]
-    #       s = slim.conv2d_transpose(s,256,2,stride=2,padding = 'VALID',scope ='P%d/deconv'%(c+1),activation_fn=tf.nn.relu)
+    #       s = slim.conv2d_transpose(s,256,kernel_size=[3,3],stride=2,padding = 'SAME',scope ='P%d/deconv'%(c+1),activation_fn=tf.nn.relu)
     #       s_ = slim.conv2d(s_, 256, [1,1], stride=1, scope='C%d'%c)
     #       s = tf.concat([s,s_],-1,name = 'C%d/concat'%c)
     #       s = slim.conv2d(s,256,[3,3],stride = 1,scope='C%d/fusion'%c)
@@ -203,7 +203,7 @@ def build_pyramid(net_name, end_points, bilinear=True):
     #   for c in range(4,1,-1):
     #       s,s_ = pyramid['P%d'%(c+1)],end_points[pyramid_map['C%d'%(c)]]
     #       if (tf.shape(s) != tf.shape(s_)):
-    #           s = slim.conv2d_transpose(s,256,2,stride = 2,padding = 'VALID',scope='P%d/deconv'%(c+1),activation_fn=tf.nn.relu)
+    #           s = slim.conv2d_transpose(s,256,kernel_size=[3,3],stride = 2,padding = 'SAME',scope='P%d/deconv'%(c+1),activation_fn=tf.nn.relu)
     #       s_ = slim.conv2d(s_, 256, [1,1], stride=1, scope='C%d'%c)
     #       s = tf.concat([s,s_],-1,name = 'C%d/concat'%c)
     #       s = slim.conv2d(s,256,[3,3],stride = 1,scope='C%d/fusion'%c)
@@ -335,15 +335,15 @@ def build_heads(pyramid, ih, iw, num_classes, base_anchors, is_training=False, g
         for _ in range(4):
             m = slim.conv2d(m, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
         # to 28x28
-        m = slim.conv2d_transpose(m, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+        m = slim.conv2d_transpose(m, 256, kernel_size=[3,3], stride=2, padding='SAME', activation_fn=tf.nn.relu)
 
         for _ in range(4):
             m = slim.conv2d(m, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
         # to 56x56
-        m = slim.conv2d_transpose(m, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+        m = slim.conv2d_transpose(m, 256, kernel_size=[3,3] , stride=2, padding='SAME', activation_fn=tf.nn.relu)
 
         tf.add_to_collection('__TRANSPOSED__', m)
-        m = slim.conv2d(m, num_classes, [1, 1], stride=1, padding='VALID', activation_fn=None)
+        m = slim.conv2d(m, num_classes, [1, 1], stride=1, padding='SAME', activation_fn=None)
 
         # print ('output mask shape: ',m.shape)
         # raise
@@ -355,9 +355,9 @@ def build_heads(pyramid, ih, iw, num_classes, base_anchors, is_training=False, g
         for _ in range(4):
             mask = slim.conv2d(mask, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
 
-        mask = slim.conv2d_transpose(mask, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+        mask = slim.conv2d_transpose(mask, 256, kernel_size=[3,3], stride=2, padding='SAME', activation_fn=tf.nn.relu)
         # this 14 for 14 joints
-        mask = slim.conv2d(mask, 14, [1, 1], stride=1, padding='VALID', activation_fn=None)
+        mask = slim.conv2d(mask, 14, [1, 1], stride=1, padding='SAME', activation_fn=None)
 
         # tf.add_to_collection('__TRANSPOSED__', masks)
 
@@ -365,11 +365,11 @@ def build_heads(pyramid, ih, iw, num_classes, base_anchors, is_training=False, g
         mask_1 = pyramid['P5']
         for _ in range(4):
             mask_1 = slim.conv2d(mask_1, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
-        mask_1 = slim.conv2d_transpose(mask_1, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+        mask_1 = slim.conv2d_transpose(mask_1, 256, kernel_size=[3,3], stride=2, padding='SAME', activation_fn=tf.nn.relu)
         # for _ in range(4):
         #     mask_1 = slim.conv2d(mask_1, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
-        # mask_1 = slim.conv2d_transpose(mask_1, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
-        mask_1 = slim.conv2d(mask_1, 14, [1, 1], stride=1, padding='VALID', activation_fn=None)
+        # mask_1 = slim.conv2d_transpose(mask_1, 256, 2, stride=2, padding='SAME', activation_fn=tf.nn.relu)
+        mask_1 = slim.conv2d(mask_1, 14, [1, 1], stride=1, padding='SAME', activation_fn=None)
         outputs['masks'] = {'mask': mask,'mask_1':mask_1}
 
         if FLAGS.use_refine:
@@ -378,9 +378,9 @@ def build_heads(pyramid, ih, iw, num_classes, base_anchors, is_training=False, g
             for _ in range(4):
                 locref_map = slim.conv2d(locref_map, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
 
-            locref_map = slim.conv2d_transpose(locref_map, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+            locref_map = slim.conv2d_transpose(locref_map, 256, kernel_size=[3,3], stride=2, padding='SAME', activation_fn=tf.nn.relu)
             # this 28 for 14 refine
-            locref_map = slim.conv2d(locref_map, 28, [1, 1], stride=1, padding='VALID', activation_fn=None)
+            locref_map = slim.conv2d(locref_map, 28, [1, 1], stride=1, padding='SAME', activation_fn=None)
 
             # tf.add_to_collection('__TRANSPOSED__', masks)
 
@@ -388,11 +388,11 @@ def build_heads(pyramid, ih, iw, num_classes, base_anchors, is_training=False, g
             locref_map_1 = pyramid['P5']
             for _ in range(4):
                 locref_map_1 = slim.conv2d(locref_map_1, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
-            locref_map_1 = slim.conv2d_transpose(locref_map_1, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
+            locref_map_1 = slim.conv2d_transpose(locref_map_1, 256, kernel_size=[3,3], stride=2, padding='SAME', activation_fn=tf.nn.relu)
             # for _ in range(4):
             #     mask_1 = slim.conv2d(mask_1, 256, [3, 3], stride=1, padding='SAME', activation_fn=tf.nn.relu)
-            # mask_1 = slim.conv2d_transpose(mask_1, 256, 2, stride=2, padding='VALID', activation_fn=tf.nn.relu)
-            locref_map_1 = slim.conv2d(locref_map_1, 28, [1, 1], stride=1, padding='VALID', activation_fn=None)
+            # mask_1 = slim.conv2d_transpose(mask_1, 256, 2, stride=2, padding='SAME', activation_fn=tf.nn.relu)
+            locref_map_1 = slim.conv2d(locref_map_1, 28, [1, 1], stride=1, padding='SAME', activation_fn=None)
             outputs['locref_maps'] = {'locref_map': locref_map,'locref_map_1':locref_map_1}
 
   return outputs
@@ -569,7 +569,8 @@ def build_losses(pyramid, outputs, gt_boxes, gt_masks,gt_body_masks,
         # mask_targets = tf.reshape(mask_targets,[-1,14,mask_dim])
 
         # mask_loss = mask_lw * tf.nn.softmax_cross_entropy_with_logits(labels=mask_targets, logits=mask)
-        mask_loss = mask_lw * tf.nn.sigmoid_cross_entropy_with_logits(labels=mask_targets, logits=mask)
+        # mask_loss = mask_lw * tf.nn.sigmoid_cross_entropy_with_logits(labels=mask_targets, logits=mask)
+        mask_loss = mask_lw * tf.nn.weighted_cross_entropy_with_logits(targets=mask_targets, logits=mask,pos_weight =300)
         mask_loss = tf.reduce_mean(mask_loss)
         # mask_loss = tf.cond(tf.greater(tf.size(labels), 0), lambda: mask_loss, lambda: tf.constant(0.0))
 
@@ -586,7 +587,8 @@ def build_losses(pyramid, outputs, gt_boxes, gt_masks,gt_body_masks,
         # mask_1_targets = tf.reshape(mask_1_targets,[-1,mask_1_targets_dim])
 
         # mask_1_loss = mask_lw * tf.nn.softmax_cross_entropy_with_logits(labels=mask_targets, logits=mask_1)
-        mask_1_loss = 0.8*mask_lw * tf.nn.sigmoid_cross_entropy_with_logits(labels=mask_targets, logits=mask_1)
+        # mask_1_loss = 0.8*mask_lw * tf.nn.sigmoid_cross_entropy_with_logits(labels=mask_targets, logits=mask_1)
+        mask_1_loss = 0.8*mask_lw * tf.nn.weighted_cross_entropy_with_logits(targets=mask_targets, logits=mask_1,pos_weight =300)
         mask_1_loss = tf.reduce_mean(mask_1_loss)
 
         # mask_2 = outputs['masks']['mask_2']
