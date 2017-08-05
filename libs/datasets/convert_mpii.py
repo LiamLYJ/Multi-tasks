@@ -130,7 +130,7 @@ def _add_to_tfrecord_mat(record_dir,dataset_dir,annotation_path,dataset_split_na
                         x2 = min(width -1 , x2+dist)
                         y2 = min(height-1, y2+dist)
                         boxes[person] = np.array([x1,y1,x2,y2,1])
-                    boxes = boxes.astype(np.float32)
+                    boxes = boxes.astype(np.int32)
                     boxes_raw = boxes.tostring()
                     masks = masks.astype(np.uint8)
                     masks_raw = masks.tostring()
