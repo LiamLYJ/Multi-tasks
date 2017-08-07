@@ -78,20 +78,19 @@ def _add_to_tfrecord_mat(record_dir,dataset_dir,annotation_path,dataset_split_na
     assert dataset_split_name in ['mpii_human_pose_v1_u12_2']
 
     mat_file = sio.loadmat(annotation_path)['RELEASE'][0,0]
-    cats = 2
     print ('start to convert data')
     num_joints = 14
     num_per_shard = 2500
-    num_whole_id = 24987
+    num_whole = 24987
     shard_id = 0
     file_head = '/home/hpc/ssd/lyj/mpii_data/images/'
     table = {0:5 , 1:4, 2:3 , 3:2 , 4:1 , 5:0 ,8:12 , 9:13 ,10:11, 11:10 ,12:9 ,13:8 , 14:7, 15:6 }
-    num_shard = np.ceil(num_whole_id / num_per_shard)
+    num_shard = np.ceil(num_whole / num_per_shard)
     for shard_id in range(0,int(num_shard)):
         record_filename = _get_dataset_filename(record_dir,dataset_split_name,shard_id)
         # options = tf.python_io.TFRecordOptions(TFRecordCompressionType.ZLIB)
         with tf.python_io.TFRecordWriter(record_filename) as tfrecord_writer:
-            for id in range( num_per_shard*shard_id, min(num_per_shard*shard_id + num_per_shard, 24987)):
+            for id in range( num_per_shard*shard_id, min(num_per_shard*shard_id + num_per_shard, num_whole)):
                 try:
                     if id % 10 ==0:
                         sys.stdout.write('\r>> Converting data id: %d shard %d\n' %(id+1,shard_id))
@@ -130,7 +129,7 @@ def _add_to_tfrecord_mat(record_dir,dataset_dir,annotation_path,dataset_split_na
                         x2 = min(width -1 , x2+dist)
                         y2 = min(height-1, y2+dist)
                         boxes[person] = np.array([x1,y1,x2,y2,1])
-                    boxes = boxes.astype(np.int32)
+                    boxes = boxes.astype(np.float32)
                     boxes_raw = boxes.tostring()
                     masks = masks.astype(np.uint8)
                     masks_raw = masks.tostring()

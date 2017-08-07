@@ -38,9 +38,8 @@ def read(tfrecords_filename):
     image = tf.decode_raw(features['image/encoded'],tf.uint8)
     image = tf.reshape(image,(ih,iw,3))
 
-    gt_boxes = tf.decode_raw(features['label/gt_boxes'],tf.int32)
+    gt_boxes = tf.decode_raw(features['label/gt_boxes'],tf.float32)
     gt_boxes = tf.reshape(gt_boxes,[num_instances,5])
-    gt_boxes = tf.cast(gt_boxes, tf.float32)
     gt_masks = tf.decode_raw(features['label/gt_masks'],tf.uint8)
     gt_masks = tf.reshape(gt_masks, [num_joints,ih,iw])
 
