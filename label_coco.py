@@ -1,21 +1,24 @@
 from libs.datasets.pycocotools.coco import COCO
 import numpy as np
 import cv2
+import easygui
+head_top = [0,0,0]
+neck_top = [0,0,0]
+flag = 0
 
-head_top = []
-neck_top = []
-flag = True
 def click(event,x,y,flags,param):
     global head_top
     global neck_top
     global flag
     if event == cv2.EVENT_LBUTTONDOWN :
-        if flag:
+        if flag == 0 :
             head_top = [x, y,1]
-            flag = False
-        else:
+            flag = flag + 1
+        elif flag == 1:
             neck_top = [x,y,1]
-            flag = True
+            flag = flag + 1
+        else:
+            easygui.msgbox('u clicked three times, plz press 'R' to re-lable')
 
 annFile = '/home/hpc/ssd/lyj/Multi-tasks/data/coco/annotations_2/person_keypoints_train2014.json'
 coco = COCO(annFile)
@@ -25,9 +28,21 @@ file_head = '/home/hpc/ssd/lyj/Multi-tasks/data/coco/train2014/'
 # imgIds = [15151,393207,262136,524273,131058]
 print ('num_ all :',len(imgIds))
 GT_id,GT_box,GT_kp = [],[],[]
+# load the formal labelled data
+tmp = np.load('annotation_tmp.npz')
+GT_id = list(tmp['id'])
+GT_box = list(tmp['box'])
+GT_kp = list(tmp['kp'])
+_counter = tmp['counter']
+
 counter = 0
 for index,imgId in enumerate(imgIds):
     counter = index
+
+    if counter < _counter  :
+        continue
+
+    print ('index / num_all/ imgId:', '%d/%d/%d'%(counter,len(imgIds),imgId))
     try:
         data = coco.loadImgs(imgId)[0]
 
@@ -39,6 +54,9 @@ for index,imgId in enumerate(imgIds):
         gt_kps = []
 
         while (i <len(ann)):
+            flag = 0
+            head_top = [0,0,0]
+            neck_top = [0,0,0]
             num_joints = ann[i]['num_keypoints']
             bbox = ann[i]['bbox']
             kps = ann[i]['keypoints']
@@ -69,17 +87,26 @@ for index,imgId in enumerate(imgIds):
                     gt_kps.pop()
                     gt_bboxs.pop()
                 if key == ord('p'):
-                    print (' skip this box')
+                    print (' pass this box')
                     gt_kps.pop()
                     gt_bboxs.pop()
+                if key == ord('m'):
+                    print ('mute head_top and neck_top in this box')
                 if key == ord('q'):
                     raise
                 if key == ord('k'):
                     damp = True
                     break
+                if key == ord('b'):
+                    print (' go back to former one')
+                    i = i -2
+                    gt_kps.pop()
+                    gt_bboxs.pop()
+                    gt_kps.pop()
+                    gt_bboxs.pop()
                 # print ('head_top:', head_top)
                 # print ('neck_top:', neck_top)
-        if damp:
+        if damp or (len(gt_bboxs) == 0):
             continue
         assert len(gt_bboxs) == len(gt_kps)
         GT_box.append(gt_bboxs)
