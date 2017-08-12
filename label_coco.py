@@ -72,14 +72,14 @@ for index,imgId in enumerate(imgIds):
                 x2 = bbox[0] + bbox[2]
                 y2 = bbox[1] + bbox[3]
                 cv2.rectangle(img,(int(x1),int(y1)),(int(x2),int(y2)),(255,0,0))
-                gt_bboxs.append([x1,y1,x2,y2,1])
                 cv2.namedWindow('img')
                 cv2.setMouseCallback('img', click)
                 cv2.imshow('img',img)
                 kps_update = kps[:]
+                i = i + 1
                 key = cv2.waitKey(0) & 0xFF
                 kps_update = kps_update + head_top + neck_top
-                i = i + 1
+                gt_bboxs.append([x1,y1,x2,y2,1])
                 gt_kps.append(kps_update)
                 if key == ord('r'):
                     print ('plz, label this again')
