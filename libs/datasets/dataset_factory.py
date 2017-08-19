@@ -17,7 +17,7 @@ def get_dataset(dataset_name, split_name, dataset_dir,
     if file_pattern is None:
         file_pattern = dataset_name + '_' + split_name + '*.tfrecord'
 
-    tfrecords = glob.glob(dataset_dir + '/records/' + file_pattern)
+    tfrecords = glob.glob(dataset_dir + 'kps_records/' + file_pattern)
     # image, ih, iw, gt_boxes, gt_masks, num_instances, img_id = coco.read(tfrecords)
     image, ih, iw, gt_boxes, gt_masks, num_instances, img_id = mpii.read(tfrecords)
     # image, gt_boxes, gt_masks = coco_preprocess.preprocess_image(image, gt_boxes, gt_masks, is_training)

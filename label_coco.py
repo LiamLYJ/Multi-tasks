@@ -26,7 +26,7 @@ catIds = coco.getCatIds(catNms=['person'])
 imgIds = coco.getImgIds(catIds = catIds)
 file_head = '/home/hpc/ssd/lyj/Multi-tasks/data/coco/train2014/'
 # imgIds = [15151,393207,262136,524273,131058]
-print ('num_ all :',len(imgIds))
+print ('num_all :',len(imgIds))
 GT_id,GT_box,GT_kp = [],[],[]
 # load the formal labelled data
 tmp = np.load('annotation_tmp.npz')

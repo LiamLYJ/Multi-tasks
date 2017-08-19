@@ -47,8 +47,10 @@ def read(tfrecords_filename):
 
 if __name__ == '__main__':
     with tf.Graph().as_default():
-        image, ih, iw, gt_boxes, gt_masks, image_id,num_instances = \
-            read('/home/hpc/ssd/lyj/mpii_data/records/mpii_human_pose_v1_u12_2_000th_shard.tfrecord')
+        image, ih, iw, gt_boxes, gt_masks,num_instances,image_id = \
+            read('/home/hpc/ssd/lyj/Multi-tasks/data/coco/kps_records/train2014_000th_shard.tfrecord')
+        image_tmp = tf.cast(image, tf.float32)
+        img_4d = tf.expand_dims(image_tmp,0)
         sess = tf.Session()
         init_op = (tf.group(
             tf.global_variables_initializer(),
@@ -56,28 +58,43 @@ if __name__ == '__main__':
         ))
         sess.run(init_op)
         tf.train.start_queue_runners(sess = sess)
+
+        image_sum_sample_shape = tf.shape(img_4d)[1:]
+        gt_x_min = gt_boxes[:, 0] / tf.cast(image_sum_sample_shape[1], tf.float32)
+        gt_y_min = gt_boxes[:, 1] / tf.cast(image_sum_sample_shape[0], tf.float32)
+        gt_x_max = gt_boxes[:, 2] / tf.cast(image_sum_sample_shape[1], tf.float32)
+        gt_y_max = gt_boxes[:, 3] / tf.cast(image_sum_sample_shape[0], tf.float32)
+        bb = tf.stack([gt_y_min, gt_x_min, gt_y_max, gt_x_max], axis=1)
+
+        tensor_img_with_gt = tf.image.draw_bounding_boxes(img_4d, tf.expand_dims(bb, 0))
+
+        tmp = gt_boxes[:,0]
         with sess.as_default():
-            for i in range(1):
-                image, ih, iw, gt_boxes, gt_masks,num,image_id = sess.run([image, ih, iw, gt_boxes, gt_masks, image_id,num_instances])
-                print ('num:', num)
-                print ('ih: ', ih)
-                print ('iw: ', iw)
-                print ('image_id: ', image_id)
-                print ('gt_boxes :', gt_boxes)
-                print ('gt_masks:', gt_masks.shape)
-                # import cv2
+            for i in range(2):
+                image_, ih_, iw_, gt_boxes_, gt_masks_,image_id_,num_,bb_,results_ = \
+                    sess.run([image, ih, iw, gt_boxes, gt_masks, image_id,num_instances,bb,tensor_img_with_gt])
+                print ('num:', num_)
+                print ('ih: ', ih_)
+                print ('iw: ', iw_)
+                print ('image_id: ', image_id_)
+                print ('gt_boxes :', gt_boxes_)
+                print ('gt_boxes_shape:',gt_boxes_.shape)
+                print ('gt_masks:', gt_masks_.shape)
+                print ('gt_bb:',bb_)
+                import cv2
                 # for j in range(gt_boxes.shape[0]):
                 #     x1 = gt_boxes[j][0]
                 #     y1 = gt_boxes[j][1]
                 #     x2 = gt_boxes[j][2]
                 #     y2 = gt_boxes[j][3]
                 #     cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0))
-                # cv2.imshow('img',image)
-                # cv2.waitKey(0)
-                import numpy as np
-                for j in range(14):
-                    print ('this is %d_th:'%j)
-                    h,w = np.where(gt_masks[j] == 1)
-                    for num in range(h.shape[0]):
-                        print ('%d one is :'%num)
-                        print (h[num],w[num])
+                # cv2.imshow('img',image_)
+                cv2.imshow('img',results_[0])
+                cv2.waitKey(0)
+                # import numpy as np
+                # for j in range(14):
+                #     print ('this is %d_th:'%j)
+                #     h,w = np.where(gt_masks[j] == 1)
+                #     for num in range(h.shape[0]):
+                #         print ('%d one is :'%num)
+                #         print (h[num],w[num])
